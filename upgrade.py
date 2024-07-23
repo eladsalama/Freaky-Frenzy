@@ -11,8 +11,8 @@ class Upgrade:
                        {"name": "Energy Pulse", "weight": 2, "rarity": "epic"},
                        {"name": "Omnivamp", "weight": 2, "rarity": "epic"},
                        {"name": "Spread Shot", "weight": 2, "rarity": "epic"},
-                       {"name": "Spinning Swords", "weight": 11, "rarity": "epic"},
-                       {"name": "Healer", "weight": 11, "rarity": "epic"},
+                       {"name": "Spinning Swords", "weight": 0, "rarity": "epic"},
+                       {"name": "Healer", "weight": 0, "rarity": "epic"},
                        {"name": "Tougher Bullets", "weight": 7, "rarity": "rare"},
                        {"name": "More Bullets", "weight": 7, "rarity": "rare"},
                        {"name": "Better Pierce", "weight": 7, "rarity": "rare"},
@@ -20,11 +20,11 @@ class Upgrade:
                        {"name": "Shield", "weight": 10, "rarity": "uncommon"},
                        {"name": "Faster Shooting", "weight": 10, "rarity": "uncommon"},
                        {"name": "Increased Max Health", "weight": 20, "rarity": "common"},
-                       {"name": "Faster Movement", "weight": 1.4, "rarity": "common"},
+                       {"name": "Faster Movement", "weight": 23.4, "rarity": "common"},
                        {"name": "None", "weight": 0, "rarity": "common"}]
 
-    upgrade_options = [{"name": "Spinning Swords", "weight": 50, "rarity": "epic"},
-                       {"name": "Healer", "weight": 50, "rarity": "epic"},]
+    #upgrade_options = [{"name": "Spinning Swords", "weight": 50, "rarity": "epic"},
+    #                   {"name": "Healer", "weight": 50, "rarity": "epic"},]
 
     rarity_colors = {"common": (255, 255, 255),  # White
                      "uncommon": (156, 194, 191),  # dark cyan
