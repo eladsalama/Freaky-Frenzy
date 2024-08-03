@@ -5,6 +5,7 @@ import math
 
 class Pickup:
     drop_chances = {'health': 0.025, 'ammo': 0.005, 'exp': 0.15, 'nuke': 0.0005, 'freeze': 0.001}
+    ammo_upgrade_bonus = 0
 
     def __init__(self, x, y, pickup_type):
         self.x = x
@@ -23,11 +24,11 @@ class Pickup:
         if drop_type == 'health':
             game.player.health = min(game.player.health + random.randint(10, 25), game.player.max_health)
         if drop_type == 'omnivamp_health':
-            game.player.health = min(game.player.max_health, game.player.health + game.player.omnivamp_lvl)
+            game.player.health = min(game.player.max_health, game.player.health + game.player.omnivamp_lvl * 5)
         elif drop_type == 'ammo':
-            game.player.ammo += 10
+            game.player.ammo += 10 + Pickup.ammo_upgrade_bonus
         elif drop_type == 'exp':
-            game.player.exp += random.randint(10, 30) + game.player.lvl
+            game.player.exp += int(random.randint(10, 30) * 1.5 ** game.player.lvl % 10)
         elif drop_type == 'nuke':
             game.score += len(game.enemies) * 10
             game.player.exp += len(game.enemies) * 10

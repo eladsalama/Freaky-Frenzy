@@ -1,14 +1,23 @@
 import pygame
 
+from Enemies.mb_dasher import MB_Dasher
+from Enemies.mb_shooter import MB_Shooter
+
+from Enemies.warrior import Warrior
+from Enemies.archer import Archer
+from Enemies.tank import Tank
+from Enemies.evolver import Evolver
+from effect import Effect
+
 from player import Player
-from enemy import Enemy
-from shootingEnemy import ShootingEnemy
-from upgraderEnemy import UpgraderEnemy
-from miniBoss import MiniBoss
-from projectile import Projectile
+from Enemies.miniBoss import MiniBoss
+from Projectiles.projectile import Projectile
+from summon import Summon
 from upgrade import Upgrade
+
 import random
 import math
+import numpy as np
 
 
 class Game:
@@ -22,7 +31,7 @@ class Game:
         self.font = pygame.font.Font(None, 36)
         self.clock = pygame.time.Clock()
 
-        self.player = Player(self.WIDTH // 2, self.HEIGHT // 2)
+        self.player = Player([self.WIDTH // 2, self.HEIGHT // 2])
         self.summons = []
         self.enemies = []
         self.mini_bosses = []
@@ -86,24 +95,29 @@ class Game:
         if self.shooting:
             self.shoot_delay += 1
             if self.shoot_delay >= self.player.fire_rate:
-                self.player.shoot(self.player_projectiles)
+                self.player.shoot(self)
                 self.shoot_delay = 0
 
         self.update_movement()
+        self.update_projectiles()
         self.update_upgrades()
 
         # Enemies
+        all_enemies = self.enemies + self.mini_bosses
         if not self.freeze:
-            for enemy in self.enemies:
-                if enemy.shooting:
-                    enemy.shoot(self.player, self.enemy_projectiles)
+            for enemy in all_enemies:
+                enemy.update(self)
 
-                if enemy.enemy_type == "upgrader":
+                if enemy.shooting:
+                    enemy.shoot(self)
+
+                if isinstance(enemy, Evolver):
                     enemy.upgrade_enemies(self)
 
             # Spawn enemies
             self.enemy_spawn_timer += 1
-            if self.enemy_spawn_timer >= self.enemy_spawn_delay and len(self.enemies) < self.max_enemies:
+            if (len(self.mini_bosses) == 0 and self.enemy_spawn_timer >= self.enemy_spawn_delay
+                    and len(self.enemies) < self.max_enemies):
                 self.spawn_enemy()
                 self.enemy_spawn_timer = 0
 
@@ -125,13 +139,14 @@ class Game:
         # level-up
         if self.player.exp >= self.player.exp_to_level:
             self.player.level_up()
+            self.effects.append(Effect(self.player.pos, 0, 10, (173, 216, 230), 1, "arrow_up"))
 
             if self.player.lvl % 3 == 0:
                 self.paused = True
                 Upgrade.generate_upgrade(self, self.WIDTH, self.HEIGHT, self.font)
                 self.paused = False
 
-            self.enemy_spawn_delay = max(10, int(self.enemy_spawn_delay * 0.97))
+            self.enemy_spawn_delay = max(10, int(self.enemy_spawn_delay * 0.95))
 
             if self.player.lvl % 30 == 0:
                 self.max_minibosses += 1
@@ -139,21 +154,92 @@ class Game:
     def update_movement(self):
         self.player.move(pygame.key.get_pressed())
 
-        for proj in self.player_projectiles:
-            proj.move(self)
-
         for summon in self.summons:
+            summon.action(self)
             summon.move(self)
 
         if not self.freeze:
-            for enemy in self.enemies:
-                enemy.move(self)
+            self.update_movement_enemies()
 
-            for mb in self.mini_bosses:
-                mb.move(self)
+    def update_movement_enemies(self):
+        all_enemies = self.enemies + self.mini_bosses
+        if not all_enemies:
+            return
 
-            for proj in self.enemy_projectiles:
-                proj.move(self)
+        positions = np.array([enemy.pos for enemy in all_enemies])
+        sizes = np.array([enemy.size for enemy in all_enemies])
+        speeds = np.array([enemy.speed for enemy in all_enemies])
+        avoid_radii = np.array([enemy.avoid_radius for enemy in all_enemies])
+
+        # Calculate directions to player
+        player_pos = np.array(self.player.pos)
+        directions = player_pos - positions
+        distances = np.linalg.norm(directions, axis=1)
+        directions = directions.astype(float)
+        distances = distances.astype(float)
+        directions /= distances[:, np.newaxis]  # Normalize
+
+        # Determine movement direction based on individual avoid_radius
+        direction_multiplier = np.where(distances >= avoid_radii, 1,
+                                        np.where(distances <= avoid_radii * 0.9, -1, 0))
+
+        # Calculate new positions
+        new_positions = positions + direction_multiplier[:, np.newaxis] * directions * speeds[:, np.newaxis]
+
+        # Correct overlaps
+        self.correct_overlaps(new_positions, sizes)
+
+        # Update enemy positions
+        for enemy, new_pos in zip(all_enemies, new_positions):
+            enemy.pos[0] = new_pos[0]
+            enemy.pos[1] = new_pos[1]
+
+    def correct_overlaps(self, positions, sizes):
+        for i in range(len(self.enemies)):
+            for j in range(i + 1, len(self.enemies)):
+                distance = np.linalg.norm(positions[i] - positions[j])
+                min_distance = sizes[i] + sizes[j]
+
+                if distance < min_distance:
+                    # Calculate the overlap
+                    overlap = min_distance - distance
+
+                    # Calculate the direction of separation
+                    direction = positions[i] - positions[j]
+                    direction /= distance
+
+                    # Move enemies apart
+                    positions[i] += direction * overlap / 2
+                    positions[j] -= direction * overlap / 2
+
+    def update_projectiles(self):
+        self.update_projectile_group(self.player_projectiles)
+        if not self.freeze:
+            self.update_projectile_group(self.enemy_projectiles)
+
+    def update_projectile_group(self, projectiles):
+        if not projectiles:
+            return
+
+        positions = np.array([p.pos for p in projectiles])
+        velocities = np.array([p.velocity for p in projectiles])
+
+        new_positions = positions + velocities
+
+        # Update homing projectiles
+        for i, proj in enumerate(projectiles):
+            if proj.proj_type == "homing":
+                proj.update_homing_projectile(self, new_positions[i])
+            else:
+                proj.pos = new_positions[i]
+
+        # Remove out-of-bounds projectiles
+        valid_indices = ((new_positions[:, 0] >= -50) &
+                         (new_positions[:, 0] <= self.WIDTH + 50) &
+                         (new_positions[:, 1] >= -50) &
+                         (new_positions[:, 1] <= self.HEIGHT + 50))
+
+        projectiles[:] = [proj for i, proj in enumerate(projectiles) if valid_indices[i]]
 
     def update_upgrades(self):
         # Magnet, OmniVamp
@@ -175,14 +261,18 @@ class Game:
         for summon in self.summons:
             summon.draw(self.screen)
 
+            if summon.summon_type == "healer":
+                if 570 - 40 * summon.lvl < summon.action_timer < 600 - 40 * summon.lvl:
+                    summon.draw_heal(self.screen, self.player)
+
         for proj in self.enemy_projectiles:
             proj.draw(self.screen)
 
-        for enemy in self.enemies:
+        for enemy in self.enemies + self.mini_bosses:
             enemy.draw(self.screen)
 
-        for miniboss in self.mini_bosses:
-            miniboss.draw(self.screen)
+        if len(self.mini_bosses) > 0:
+            self.mini_bosses[0].draw_screen_glow(self.screen)
 
         for pickup in self.pickups:
             pickup.draw(self.screen)
@@ -212,89 +302,180 @@ class Game:
             y = random.randint(0, self.HEIGHT)
 
         if difficulty == 'normal':
-            enemy_type = random.choices(["normal", "tank", "archer", "upgrader"], weights=[0.70, 0.10, 0.15, 0.05])[0]
-            #enemy_type = random.choices(["normal", "tank", "archer"], weights=[0, 0, 1])[0]
+            enemy_type = random.choices(["warrior", "tank", "archer", "evolver"], weights=[0.73, 0.10, 0.15, 0.02])[0]
+            #enemy_type = random.choices(["normal", "tank", "archer", "evolver"], weights=[0, 1, 0, 0])[0]
 
             enemy = None
 
-            if enemy_type in ["normal", "tank"]:
-                enemy = Enemy([x, y], enemy_type, self.player.lvl)
-            elif enemy_type in ["archer"]:
-                enemy = ShootingEnemy([x, y], enemy_type, self.player.lvl)
-            elif enemy_type in ["upgrader"]:
-                enemy = UpgraderEnemy([x, y], enemy_type, self.player.lvl)
+            if enemy_type == "warrior":
+                enemy = Warrior([x, y], enemy_type, self.player.lvl)
+            elif enemy_type == "tank":
+                enemy = Tank([x, y], enemy_type, self.player.lvl)
+            elif enemy_type == "archer":
+                enemy = Archer([x, y], enemy_type, self.player.lvl)
+            elif enemy_type == "evolver":
+                upgrader_type = random.choices(["upg_lightning", "upg_frost", "upg_fire"])[0]
+                enemy = Evolver([x, y], upgrader_type, self.player.lvl)
 
             self.enemies.append(enemy)
 
         if difficulty == 'miniboss':
-            miniBoss_type = random.choices(["normal_mb"], weights=[1])[0]
-            miniboss = MiniBoss([x, y], miniBoss_type, self.player.lvl)
+            miniBoss_type = random.choice(["mb_dasher", "mb_shooter"])
+
+            miniboss = None
+            if miniBoss_type == "mb_dasher":
+                miniboss = MB_Dasher([x, y], miniBoss_type, self.player.lvl)
+            elif miniBoss_type == "mb_shooter":
+                miniboss = MB_Shooter([x, y], miniBoss_type, self.player.lvl)
             self.mini_bosses.append(miniboss)
 
     def check_collisions(self):
         all_enemies = self.enemies + self.mini_bosses
-        for proj in self.player_projectiles:
-            if proj.proj_type == "normal":
-                for enemy in all_enemies:
-                    if math.hypot(proj.x - enemy.pos[0], proj.y - enemy.pos[1]) < enemy.size + proj.size:
-                        enemy.take_dmg(self, proj.dmg)
+        player_pos = np.array(self.player.pos)
 
-                        if self.player.fork_lvl > 0:
-                            self.player_projectiles.remove(proj)
+        # Convert positions and sizes of enemies and projectiles to NumPy arrays
+        enemy_positions = np.array([enemy.pos for enemy in all_enemies])
+        enemy_sizes = np.array([enemy.size for enemy in all_enemies])
+        enemy_damages = np.array([enemy.damage for enemy in all_enemies])
 
-                            if random.random() < 0.3 + 0.05 * self.player.fork_lvl:
-                                lvl_increase = 0.5 + 0.1 * self.player.fork_lvl
-                                self.player_projectiles.extend([Projectile(proj.x, proj.y, proj.angle + math.pi / 12 * i,
-                                                                self.player.bullet_color, self.player.bullet_size * lvl_increase, self.player.dmg * lvl_increase, 0)
-                                                                for i in range(-1, 2, 2)])
-                            break
+        player_proj_positions = np.array([proj.pos for proj in self.player_projectiles])
+        player_proj_sizes = np.array([proj.size for proj in self.player_projectiles])
 
-                        proj.pierce += 1
-                        if proj.pierce == self.player.pierce_lvl:
-                            self.player_projectiles.remove(proj)
-                            break
+        enemy_proj_positions = np.array([proj.pos for proj in self.enemy_projectiles])
+        enemy_proj_sizes = np.array([proj.size for proj in self.enemy_projectiles])
 
-        for proj in self.enemy_projectiles:
-            distance = math.hypot(proj.x - self.player.pos[0], proj.y - self.player.pos[1])
+        to_remove_player_proj = set()
+        to_remove_enemy_proj = set()
+        to_remove_enemies = set()
+        to_remove_pickups = set()
 
-            if self.player.shield_lvl == 0:
-                if distance < self.player.size + proj.size:
-                    self.player.health -= proj.dmg
-                    self.enemy_projectiles.remove(proj)
-                    return True
+        # Player projectiles vs enemies
+        if enemy_positions.size > 0 and player_proj_positions.size > 0:
+            distances = np.sqrt(((player_proj_positions[:, None, :] - enemy_positions[None, :, :]) ** 2).sum(axis=2))
+            collisions = distances < (player_proj_sizes[:, None] + enemy_sizes[None, :])
 
-            else:
-                if distance < self.player.size + self.player.shield_radius + proj.size:
-                    proj_angle = math.atan2(self.player.pos[1] - proj.y, proj.x - self.player.pos[0])
+            for proj_idx, enemy_idx in np.argwhere(collisions):
+                if proj_idx in to_remove_player_proj or enemy_idx in to_remove_enemies:
+                    continue
 
-                    # Check if projectile is within shield's arc (now behind the player)
-                    if abs(self.player.shield_angle - proj_angle) <= 2 * self.player.shield_size:
-                        self.enemy_projectiles.remove(proj)
+                enemy = all_enemies[enemy_idx]
+                proj = self.player_projectiles[proj_idx]
+                enemy.take_dmg(self, proj.dmg)
+                self.effects.append(Effect(enemy.pos, proj.angle, 3, enemy.color, 0.5, "dot_splatter"))
+
+                if self.player.bullet_dot in ["freeze", "burn"] and not isinstance(enemy, MiniBoss):
+                    dot = 0 if self.player.bullet_dot == "freeze" else self.player.dmg / 1.5
+                    enemy.add_dot(self.player.bullet_dot, dot, 1, 0.33)
+
+                if enemy.health <= 0 and isinstance(proj.shooter, Summon):
+                    proj.shooter.add_exp(1)
+
+                if self.player.fork_lvl > 0:
+                    to_remove_player_proj.add(proj_idx)
+
+                    if random.random() < 0.3 + 0.05 * self.player.fork_lvl:
+                        lvl_increase = 0.5 + 0.1 * self.player.fork_lvl
+                        new_projectiles = [Projectile(proj.pos, proj.angle + math.pi / 12 * i, 10,
+                                           self.player.bullet_shape, self.player.bullet_color,
+                                           self.player.bullet_size * lvl_increase,
+                                           self.player.dmg * lvl_increase, 0)
+                                           for i in range(-1, 2, 2)]
+                        self.player_projectiles.extend(new_projectiles)
+                    continue
+
+                proj.pierce += 1
+                if proj.pierce == self.player.pierce_lvl:
+                    to_remove_player_proj.add(proj_idx)
+                    continue
+
+        # Enemy projectiles vs player
+        if enemy_proj_positions.size > 0:
+            distances = np.linalg.norm(enemy_proj_positions - player_pos, axis=1)
+            collisions = distances < (enemy_proj_sizes + self.player.size)
+
+            for i, collides in enumerate(collisions):
+                if collides:
+                    proj = self.enemy_projectiles[i]
+                    if self.player.shield_lvl == 0:
+                        self.player.take_dmg(self, proj.dmg)
+                        to_remove_enemy_proj.add(i)
+                    else:
+                        proj_angle = math.atan2(self.player.pos[1] - proj.pos[1], proj.pos[0] - self.player.pos[0])
+                        if distances[i] < self.player.size + self.player.shield_radius + proj.size:
+                            if abs(self.player.shield_angle - proj_angle) <= 2 * self.player.shield_size:
+                                to_remove_enemy_proj.add(i)
+                                continue
+                            elif distances[i] < 10 + proj.size:
+                                self.player.take_dmg(self, proj.dmg)
+                                to_remove_enemy_proj.add(i)
+                                continue
+
+        # Player vs enemies
+        if enemy_positions.size > 0:
+            distances = np.linalg.norm(enemy_positions - player_pos, axis=1)
+            collisions = distances < (enemy_sizes + self.player.size)
+
+            for i, collides in enumerate(collisions):
+                if collides:
+                    if i in to_remove_enemies:
                         continue
-
-                # If projectile wasn't blocked by shield, check if it hits the player
-                if distance < 10 + proj.size:
-                    self.player.health -= proj.dmg
-                    self.enemy_projectiles.remove(proj)
+                    enemy = all_enemies[i]
+                    if not isinstance(enemy, MiniBoss):
+                        enemy.take_dmg(self, enemy.health)
+                    self.player.health -= enemy_damages[i]
+                    to_remove_enemies.add(i)
                     return True
 
-        for enemy in all_enemies:
-            dist = math.hypot(self.player.pos[0] - enemy.pos[0], self.player.pos[1] - enemy.pos[1])
-            if dist < enemy.size + self.player.size:
-                if not isinstance(enemy, MiniBoss):
-                    enemy.take_dmg(self, enemy.health)
-                self.player.health -= enemy.damage
-                return True
+        # Energy Shield
+        lvl_increment = 1.25 ** self.player.energy_pulse_lvl
+        energy_pulse_radius = 50 * lvl_increment
 
-            lvl_increment = 1.25 ** self.player.energy_pulse_lvl
-            energy_pulse_radius = 50 * lvl_increment
-            if self.player.energy_pulse_lvl > 0 and 4500 < pygame.time.get_ticks() - self.player.energy_pulse_timer < 5500 and dist < enemy.size + energy_pulse_radius:
-                enemy.take_dmg(self, self.player.dmg * lvl_increment)
+        if self.player.energy_pulse_lvl > 0 and 4500 < pygame.time.get_ticks() - self.player.energy_pulse_timer < 5500:
+            if enemy_positions.size > 0:
+                distances = np.linalg.norm(enemy_positions - player_pos, axis=1)
+                collisions = distances < (enemy_sizes + energy_pulse_radius)
 
-        for pickup in self.pickups:
-            if math.hypot(self.player.pos[0] - pickup.x, self.player.pos[1] - pickup.y) < 20:
-                pickup.apply_pickup(self, pickup.type)
-                self.pickups.remove(pickup)
+                for i, collides in enumerate(collisions):
+                    if collides:
+                        all_enemies[i].take_dmg(self, self.player.dmg * lvl_increment)
+
+        # Summons vs enemies
+        summon_positions = np.array([summon.pos for summon in self.summons])
+        summon_sizes = np.array([summon.size for summon in self.summons])
+
+        if summon_positions.size > 0 and enemy_positions.size > 0:
+            distances = np.sqrt(((summon_positions[:, None, :] - enemy_positions[None, :, :]) ** 2).sum(axis=2))
+            collisions = distances < (summon_sizes[:, None] + enemy_sizes[None, :])
+
+            for summon_idx, enemy_idx in np.argwhere(collisions):
+                if enemy_idx in to_remove_enemies:
+                    continue
+                all_enemies[enemy_idx].take_dmg(self, self.summons[summon_idx].dmg)
+
+        # Player vs pickups
+        if len(self.pickups) > 0:
+            pickup_positions = np.array([(pickup.x, pickup.y) for pickup in self.pickups])
+            pickup_sizes = np.array([20] * len(self.pickups))  # Assuming a fixed size for pickups
+
+            distances = np.linalg.norm(pickup_positions - player_pos, axis=1)
+            collisions = distances < pickup_sizes
+
+            for i, collides in enumerate(collisions):
+                if collides:
+                    if i in to_remove_pickups:
+                        continue
+                    pickup = self.pickups[i]
+                    pickup.apply_pickup(self, pickup.type)
+                    to_remove_pickups.add(i)
+
+        # Remove projectiles, enemies, and pickups after processing
+        self.player_projectiles = [proj for idx, proj in enumerate(self.player_projectiles) if
+                                   idx not in to_remove_player_proj]
+        self.enemy_projectiles = [proj for idx, proj in enumerate(self.enemy_projectiles) if
+                                  idx not in to_remove_enemy_proj]
+        self.enemies = [enemy for idx, enemy in enumerate(self.enemies) if idx not in to_remove_enemies]
+        self.mini_bosses = [enemy for idx, enemy in enumerate(self.mini_bosses) if idx not in to_remove_enemies]
+        self.pickups = [pickup for idx, pickup in enumerate(self.pickups) if idx not in to_remove_pickups]
 
         return False
 
@@ -325,7 +506,7 @@ class Game:
     def draw_hud(self):
         font = pygame.font.Font(None, 36)
         WHITE = (255, 255, 255)
-        health_text = font.render(f"Health: {self.player.health}", True, WHITE)
+        health_text = font.render(f"Health: {int(self.player.health)}", True, WHITE)
         ammo_text = font.render(f"Ammo: {self.player.ammo}", True, WHITE)
         score_text = font.render(f"Score: {self.score}", True, WHITE)
         level_text = font.render(f"Level: {self.player.lvl}", True, WHITE)

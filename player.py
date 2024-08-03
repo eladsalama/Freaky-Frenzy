@@ -2,34 +2,28 @@ import pygame
 import math
 import random
 
-from projectile import Projectile
+from Projectiles.lightningStrike import LightningStrike
+from Projectiles.projectile import Projectile
+from entity import Entity
 
 
-class Player:
-    def __init__(self, x, y):
-        self.pos = [x, y]
-        self.size = 10
-        self.angle = 0
-
-        self.lvl = 1
-        self.exp = 0
-        self.exp_to_level = 30
-
-        self.max_health = 100
-        self.health = 100
+class Player(Entity):
+    def __init__(self, pos):
+        super().__init__(pos)
 
         self.dmg = 1
-        self.speed = 5
 
         self.proj_type = "normal"
-        self.ammo = 50  # 50
-        self.fire_rate = 3  # 50
+        self.ammo = 100  # 100
+        self.fire_rate = 25  # 25
         self.bullet_amount = 1
         self.bullet_size = 5
+        self.bullet_dot = None
         self.pierce_lvl = 1
         self.fork_lvl = 0
         self.spreadShot = False
-        self.bullet_color = (0, 0, 255)
+        self.bullet_shape = "circle"
+        self.bullet_color = (0, 220, 220)
 
         self.shield_lvl = 0
         self.shield_size = 0
@@ -40,13 +34,17 @@ class Player:
         self.shield_cannons = [None, None, None]
         self.cannon_angle = 0
 
+        self.magic_shield = False
+
         self.magnet_lvl = 0
         self.energy_pulse_lvl = 0
         self.energy_pulse_timer = 0
 
         self.omnivamp_lvl = 0
 
-        self.disabled_upgrades = ["None"]
+        self.lightning = None
+
+        self.dot_effect = None
 
     def move(self, keys):
         dx = dy = 0
@@ -77,11 +75,12 @@ class Player:
         dy = mouse_pos[1] - self.pos[1]
         self.angle = math.atan2(dy, dx)
 
-    def shoot(self, projectiles):
-        if self.proj_type == "normal":
-            self.shoot_normal(projectiles)
+    def shoot(self, game):
+        if self.proj_type == "lightning":
+            self.shoot_lightning(game)
+            return
 
-    def shoot_normal(self, projectiles):
+        projectiles = game.player_projectiles
         if self.ammo > 0:
             for i in range(0, self.bullet_amount):
                 offset_x = math.cos(self.angle) * 20 * i
@@ -94,28 +93,32 @@ class Player:
                     elif self.bullet_amount >= 5:
                         angle_variance = random.uniform(-math.pi / 6, math.pi / 6)
 
-                projectiles.append(Projectile(self.pos[0] + offset_x, self.pos[1] + offset_y, self.angle + angle_variance,
-                                              self.bullet_color, self.bullet_size, self.dmg, 0))
+                projectiles.append(Projectile([self.pos[0] + offset_x, self.pos[1] + offset_y], self.angle + angle_variance, 10,
+                                              self.bullet_shape, self.bullet_color, self.bullet_size, self.dmg, self,
+                                              proj_type=self.proj_type))
             self.ammo -= 1
 
         if self.shield_lvl == 3:
-            projectiles.extend([Projectile(self.shield_cannons[i][0], self.shield_cannons[i][1],
-                                           self.cannon_angle + (i - 1) * (math.pi / 6),
-                                           self.bullet_color, self.bullet_size, self.dmg, 0) for i in range(3)])
+            projectiles.extend([Projectile((self.shield_cannons[i][0], self.shield_cannons[i][1]),
+                                           self.cannon_angle + (i - 1) * (math.pi / 6), 10,
+                                           self.bullet_shape, self.bullet_color, self.bullet_size, self.dmg, self,
+                                           proj_type=self.proj_type) for i in range(3)])
 
-    def level_up(self):
-        self.lvl += 1
-        self.exp -= self.exp_to_level
-        self.exp_to_level = int(self.exp_to_level * 1.1)  # Increase exp needed for next level
+    def shoot_lightning(self, game):
+        all_enemies = game.enemies + game.mini_bosses
+        self.lightning = LightningStrike(self, all_enemies, [], True)
+        self.lightning.dmg_enemies(game)
 
     def draw(self, screen):
-        # player
-        pygame.draw.circle(screen, (255, 0, 0), (int(self.pos[0]), int(self.pos[1])), self.size)
+        self.draw_hp_bar(screen)
 
         # aim line
         end_pos = (int(self.pos[0] + math.cos(self.angle) * 18),
                    int(self.pos[1] + math.sin(self.angle) * 18))
-        pygame.draw.line(screen, (255, 0, 0), self.pos, end_pos, 6)
+        pygame.draw.line(screen, self.color, self.pos, end_pos, 7)
+
+        # player
+        pygame.draw.circle(screen, self.color, (int(self.pos[0]), int(self.pos[1])), self.size + 2)
 
         # shield
         if self.shield_lvl > 0:
