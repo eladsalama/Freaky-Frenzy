@@ -136,6 +136,8 @@ class MB_Shooter(MiniBoss):
                             self, proj_type, target)
         game.enemy_projectiles.append(bullet)
 
+    def move(self, game):
+        return
 
     def draw(self, screen):
         super().draw_hp_bar(screen)

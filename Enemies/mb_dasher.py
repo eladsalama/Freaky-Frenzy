@@ -28,9 +28,8 @@ class MB_Dasher(MiniBoss):
         self.dash_direction = [0, 0]
         self.spike_rotation_angle = 0
 
-    def move(self, game, avoid_radius=0):
+    def move(self, game):
         if self.dash_cooldown > 0:
-            #super().move(game, avoid_radius)
             self.dash_cooldown -= 1
         else:
             self.dash(game)

@@ -154,6 +154,9 @@ class Game:
     def update_movement(self):
         self.player.move(pygame.key.get_pressed())
 
+        for mb in self.mini_bosses:
+            mb.move(self)
+
         for summon in self.summons:
             summon.action(self)
             summon.move(self)
