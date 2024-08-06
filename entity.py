@@ -54,7 +54,7 @@ class Entity:
             self.speed *= 0.3
         if self.dot_effect['type'] == "burn":
             self.color = (222, 69, 0)
-            self.speed *= 1.2
+            self.speed *= 1.1
 
     def update(self, game):
         if self.dot_effect:

@@ -13,7 +13,7 @@ class MB_Dasher(MiniBoss):
         super().__init__(pos, miniboss_type, player_lvl)
 
         self.size = 50
-        self.max_health = 500 * 7 ** (player_lvl % 5)
+        self.max_health = 1000 * 7 ** (player_lvl % 5)
         self.health = self.max_health
         self.damage = 1
         self.speed = 1

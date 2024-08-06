@@ -9,12 +9,13 @@ class Archer(Enemy):
     def __init__(self, pos, enemy_type, player_lvl):
         super().__init__(pos, enemy_type, player_lvl)
 
+        self.health *= 2
         self.speed *= 1.2
         self.max_speed = self.speed
         self.avoid_radius = 200
         self.damage *= 0.5
         self.size = 15
-        self.exp_value = 20
+        self.exp_value = 2
         self.color = (255, 215, 0)
         self.original_color = self.color
         self.angle = 0
@@ -23,7 +24,7 @@ class Archer(Enemy):
         self.shoot_interval = 60
 
         self.bullet_dmg = 3
-        self.bullet_size = 3
+        self.bullet_size = 4
         self.bullet_shape = "circle"
         self.bullet_color = (255, 255, 0)
 

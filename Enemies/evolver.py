@@ -15,7 +15,7 @@ class Evolver(Enemy):
         self.exp_value = 100
 
         self.upgraded_enemies = []
-        self.upgrade_amount = 4
+        self.upgrade_amount = 3
 
         if enemy_type == "upg_lightning":
             self.color = (138, 43, 226)

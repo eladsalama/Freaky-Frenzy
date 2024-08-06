@@ -8,6 +8,7 @@ from Enemies.archer import Archer
 from Enemies.tank import Tank
 from Enemies.evolver import Evolver
 from effect import Effect
+from options import Options
 
 from player import Player
 from Enemies.miniBoss import MiniBoss
@@ -26,8 +27,10 @@ class Game:
         pygame.init()
         pygame.display.set_caption("Freaky Frenzy")
 
-        self.WIDTH, self.HEIGHT = 800, 600
-        self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT))
+        self.options = Options(self)
+        self.WIDTH, self.HEIGHT = self.options.resolutions[self.options.current_resolution_index]
+
+        self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT), pygame.RESIZABLE)
         self.font = pygame.font.Font(None, 36)
         self.clock = pygame.time.Clock()
 
@@ -41,19 +44,17 @@ class Game:
         self.effects = []
         self.max_enemies = 10
         self.max_minibosses = 0
-        self.enemy_spawn_delay = 120
+        self.enemy_spawn_delay = 60
         self.enemy_spawn_timer = 0
-
-        self.running = True
-        self.paused = False
-        self.freeze = False
-        self.freeze_time = 0
 
         self.score = 0
         self.game_time = 0
 
-        self.shooting = False
-        self.shoot_delay = 0
+        self.freeze = False
+        self.freeze_time = 0
+
+        self.running = True
+        self.paused = False
 
     def run(self):
         while self.running:
@@ -62,6 +63,8 @@ class Game:
             if not self.paused:
                 self.update()
                 self.draw()
+            elif self.options.in_options_menu:
+                self.options.draw_options_menu()
             else:
                 self.draw_pause_menu()
             pygame.display.flip()
@@ -75,28 +78,31 @@ class Game:
 
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
-                    self.shooting = True
+                    self.player.shooting = True
+                    if self.paused and self.options.in_options_menu:
+                        self.options.handle_options_click(event.pos)
+
             elif event.type == pygame.MOUSEBUTTONUP:
                 if event.button == 1:
-                    self.shooting = False
+                    self.player.shooting = False
 
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    self.paused = not self.paused
+                    if self.options.in_options_menu:
+                        self.options.in_options_menu = False
+                    else:
+                        self.paused = not self.paused
 
     def update(self):
         self.game_time += 1 / 60  # Increment game time
 
-        # Increase difficulty over time
-        self.max_enemies = 10 + int(self.game_time / 10)  # Add one more max enemy every 10 seconds
-
         # Player
         self.player.aim()
-        if self.shooting:
-            self.shoot_delay += 1
-            if self.shoot_delay >= self.player.fire_rate:
+        if self.player.shooting:
+            self.player.shoot_delay += 1
+            if self.player.shoot_delay >= self.player.fire_rate:
                 self.player.shoot(self)
-                self.shoot_delay = 0
+                self.player.shoot_delay = 0
 
         self.update_movement()
         self.update_projectiles()
@@ -131,10 +137,10 @@ class Game:
                 self.player.fire_rate *= 5
 
         # Check collisions
-        if self.check_collisions():
-            if self.player.health <= 0:
-                self.game_over()
-                self.__init__()  # Reset game state
+        self.check_collisions()
+        if self.player.health <= 0:
+            self.game_over()
+            self.__init__()  # Reset game state
 
         # level-up
         if self.player.exp >= self.player.exp_to_level:
@@ -146,13 +152,15 @@ class Game:
                 Upgrade.generate_upgrade(self, self.WIDTH, self.HEIGHT, self.font)
                 self.paused = False
 
+            # Increase difficulty over time
+            self.max_enemies += 1
             self.enemy_spawn_delay = max(10, int(self.enemy_spawn_delay * 0.95))
 
             if self.player.lvl % 30 == 0:
                 self.max_minibosses += 1
 
     def update_movement(self):
-        self.player.move(pygame.key.get_pressed())
+        self.player.move(self, pygame.key.get_pressed())
 
         for mb in self.mini_bosses:
             mb.move(self)
@@ -254,41 +262,6 @@ class Game:
             if pygame.time.get_ticks() - self.player.energy_pulse_timer > 5500:
                 self.player.energy_pulse_timer = pygame.time.get_ticks()
 
-    def draw(self):
-        self.screen.fill((0, 0, 0))  # Clear screen
-        self.player.draw(self.screen)
-
-        for proj in self.player_projectiles:
-            proj.draw(self.screen)
-
-        for summon in self.summons:
-            summon.draw(self.screen)
-
-            if summon.summon_type == "healer":
-                if 570 - 40 * summon.lvl < summon.action_timer < 600 - 40 * summon.lvl:
-                    summon.draw_heal(self.screen, self.player)
-
-        for proj in self.enemy_projectiles:
-            proj.draw(self.screen)
-
-        for enemy in self.enemies + self.mini_bosses:
-            enemy.draw(self.screen)
-
-        if len(self.mini_bosses) > 0:
-            self.mini_bosses[0].draw_screen_glow(self.screen)
-
-        for pickup in self.pickups:
-            pickup.draw(self.screen)
-            if pygame.time.get_ticks() - pickup.spawn_time > 10000:
-                self.pickups.remove(pickup)
-
-        for effect in self.effects:
-            effect.draw(self.screen)
-            if pygame.time.get_ticks() > effect.time_end:
-                self.effects.remove(effect)
-
-        self.draw_hud()
-
     def spawn_enemy(self, difficulty='normal'):
         side = random.choice(['top', 'bottom', 'left', 'right'])
         if side == 'top':
@@ -325,12 +298,13 @@ class Game:
         if difficulty == 'miniboss':
             miniBoss_type = random.choice(["mb_dasher", "mb_shooter"])
 
-            miniboss = None
+            minibosses = None
             if miniBoss_type == "mb_dasher":
-                miniboss = MB_Dasher([x, y], miniBoss_type, self.player.lvl)
+                minibosses = [MB_Dasher([x, y], miniBoss_type, self.player.lvl),
+                              MB_Dasher([x, y], miniBoss_type, self.player.lvl)]
             elif miniBoss_type == "mb_shooter":
-                miniboss = MB_Shooter([x, y], miniBoss_type, self.player.lvl)
-            self.mini_bosses.append(miniboss)
+                minibosses = [MB_Shooter([x, y], miniBoss_type, self.player.lvl)]
+            self.mini_bosses.extend(minibosses)
 
     def check_collisions(self):
         all_enemies = self.enemies + self.mini_bosses
@@ -367,7 +341,7 @@ class Game:
                 self.effects.append(Effect(enemy.pos, proj.angle, 3, enemy.color, 0.5, "dot_splatter"))
 
                 if self.player.bullet_dot in ["freeze", "burn"] and not isinstance(enemy, MiniBoss):
-                    dot = 0 if self.player.bullet_dot == "freeze" else self.player.dmg / 1.5
+                    dot = self.player.dmg / 1.5 if self.player.bullet_dot == "freeze" else self.player.dmg
                     enemy.add_dot(self.player.bullet_dot, dot, 1, 0.33)
 
                 if enemy.health <= 0 and isinstance(proj.shooter, Summon):
@@ -387,7 +361,7 @@ class Game:
                     continue
 
                 proj.pierce += 1
-                if proj.pierce == self.player.pierce_lvl:
+                if proj.pierce == self.player.pierce_lvl * 4 + 1:
                     to_remove_player_proj.add(proj_idx)
                     continue
 
@@ -506,6 +480,41 @@ class Game:
                         return True
         return False
 
+    def draw(self):
+        self.screen.fill((0, 0, 0))  # Clear screen
+        self.player.draw(self.screen)
+
+        for proj in self.player_projectiles:
+            proj.draw(self.screen)
+
+        for summon in self.summons:
+            summon.draw(self.screen)
+
+            if summon.summon_type == "healer":
+                if 570 - 40 * summon.lvl < summon.action_timer < 600 - 40 * summon.lvl:
+                    summon.draw_heal(self.screen, self.player)
+
+        for proj in self.enemy_projectiles:
+            proj.draw(self.screen)
+
+        for enemy in self.enemies + self.mini_bosses:
+            enemy.draw(self.screen)
+
+        if len(self.mini_bosses) > 0:
+            self.mini_bosses[0].draw_screen_glow(self)
+
+        for pickup in self.pickups:
+            pickup.draw(self.screen)
+            if pygame.time.get_ticks() - pickup.spawn_time > 10000:
+                self.pickups.remove(pickup)
+
+        for effect in self.effects:
+            effect.draw(self.screen)
+            if pygame.time.get_ticks() > effect.time_end:
+                self.effects.remove(effect)
+
+        self.draw_hud()
+
     def draw_hud(self):
         font = pygame.font.Font(None, 36)
         WHITE = (255, 255, 255)
@@ -529,7 +538,25 @@ class Game:
         self.screen.blit(overlay, (0, 0))
 
         font = pygame.font.Font(None, 48)
+        small_font = pygame.font.Font(None, 40)
+
         pause_text = font.render("PAUSED", True, (255, 255, 255))
-        resume_text = font.render("Press ESC to resume", True, (255, 255, 255))
-        self.screen.blit(pause_text, (self.WIDTH // 2 - pause_text.get_width() // 2, self.HEIGHT // 2 - 50))
-        self.screen.blit(resume_text, (self.WIDTH // 2 - resume_text.get_width() // 2, self.HEIGHT // 2 + 50))
+        resume_text = small_font.render("(Press ESC to resume)", True, (255, 255, 255))
+        options_text = font.render("Options", True, (255, 255, 255))
+        exit_text = font.render("Exit", True, (255, 255, 255))
+
+        self.screen.blit(pause_text, (self.WIDTH // 2 - pause_text.get_width() // 2, self.HEIGHT // 2 - 250))
+        self.screen.blit(resume_text, (self.WIDTH // 2 - resume_text.get_width() // 2, self.HEIGHT // 2 - 210))
+        self.screen.blit(options_text, (self.WIDTH // 2 - options_text.get_width() // 2, self.HEIGHT // 2 - 125))
+        self.screen.blit(exit_text, (self.WIDTH // 2 - exit_text.get_width() // 2, self.HEIGHT // 2))
+
+        options_rect = options_text.get_rect(center=(self.WIDTH // 2, self.HEIGHT // 2 - 110))
+        exit_rect = options_text.get_rect(center=(self.WIDTH // 2, self.HEIGHT // 2))
+
+        if options_rect.collidepoint(pygame.mouse.get_pos()):
+            if pygame.mouse.get_pressed()[0]:
+                self.options.in_options_menu = True
+
+        if exit_rect.collidepoint(pygame.mouse.get_pos()):
+            if pygame.mouse.get_pressed()[0]:
+                self.running = False

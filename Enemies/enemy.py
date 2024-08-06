@@ -1,5 +1,3 @@
-import pygame
-import math
 import random
 
 from entity import Entity
@@ -12,8 +10,8 @@ class Enemy(Entity):
 
         self.enemy_type = enemy_type
 
-        self.health = 2 + player_lvl // 5
-        self.damage = 10 + player_lvl // 5
+        self.health = 1 + player_lvl // 5
+        self.damage = random.randint(5, 10) + player_lvl // 5
         self.speed = 2 + 0.25 * player_lvl // 15
         self.max_speed = self.speed
         self.avoid_radius = 0
@@ -41,7 +39,7 @@ class Enemy(Entity):
                     enemy.upgrade(self.enemy_type, revert=True)
 
             # reward
-            game.score += 10
+            game.score += 1
             game.player.exp += int(self.exp_value * 1.15 ** (game.player.lvl % 10))
             Pickup.drop(self, game.pickups)
 

@@ -12,7 +12,7 @@ class Upgrade:
                             "Robo Helper"]
     upgrade_options_rare = ["More Bullets", "Better Pierce", "Fork Bullet", "Spinning Swords"]
     upgrade_options_uncommon = ["Shield", "Faster Shooting", "Damage Increase", "Freezing Bullets", "Burning Bullets"]
-    upgrade_options_common = ["Increased Max Health", "Faster Movement", "More Ammo on Pickup"]
+    upgrade_options_common = ["Increased Max Health", "Faster Movement", "More Ammo on Pickup", "Faster Bullets"]
 
     rarity_rates = {"common": 35, "uncommon": 30, "rare": 25, "epic": 8, "legendary": 2}
 
@@ -103,8 +103,10 @@ class Upgrade:
             player.bullet_amount += 1
 
         elif choice == "Better Pierce":
-            player.pierce_lvl += 4
-            player.bullet_shape = "line"
+            player.pierce_lvl += 1
+            if player.pierce_lvl == 5:
+                player.bullet_shape = "line"
+                Upgrade.disable_upgrade(choice)
             Upgrade.disable_upgrade("Fork Bullet")
 
         elif choice == "Fork Bullet":
@@ -141,26 +143,33 @@ class Upgrade:
                 Upgrade.disable_upgrade(choice)
                 Upgrade.upgrade_options_epic.append("Magic Shield")
 
-        elif choice in ["Freezing Bullets", "Burning Bullets"]:
-            effect = "freeze" if choice == "Freezing Bullets" else "burn"
-            player.bullet_dot = effect
+        elif choice == "Freezing Bullets":
+            player.bullet_dot = "freeze"
+            Upgrade.disable_upgrade(choice)
+            if "Burning Bullets" not in Upgrade.upgrade_options_uncommon:
+                Upgrade.upgrade_options_uncommon.append("Burning Bullets")
+
+        elif choice == "Burning Bullets":
+            player.bullet_dot = "burn"
+            Upgrade.disable_upgrade(choice)
+            if "Freezing Bullets" not in Upgrade.upgrade_options_uncommon:
+                Upgrade.upgrade_options_uncommon.append("Freezing Bullets")
 
         # common
         elif choice == "Increased Max Health":
             player.max_health = int(1.5 * player.max_health)
             player.health = player.max_health
-            player.size += 2
 
         elif choice == "Faster Movement":
             player.max_speed += 1
             player.speed = player.max_speed
 
-            if player.size > 5:
-                player.size -= 1
-
         elif choice == "More Ammo on Pickup":
             player.ammo += 25
             Pickup.ammo_upgrade_bonus += 10
+
+        elif choice == "Faster Bullets":
+            player.bullet_speed *= 1.5
 
     @staticmethod
     def disable_upgrade(upgrade):

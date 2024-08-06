@@ -12,7 +12,7 @@ class MB_Shooter(MiniBoss):
     def __init__(self, pos, miniboss_type, player_lvl):
         super().__init__(pos, 'upgrader_archer_mb', player_lvl)
         self.size = 70
-        self.max_health = 1000 * 4 ** (player_lvl % 5)
+        self.max_health = 1500 * 6 ** (player_lvl % 5)
         self.health = self.max_health
         self.damage = 1
         self.speed = 0.7

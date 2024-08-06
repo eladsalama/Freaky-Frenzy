@@ -26,7 +26,7 @@ class Pickup:
         if drop_type == 'omnivamp_health':
             game.player.health = min(game.player.max_health, game.player.health + game.player.omnivamp_lvl * 5)
         elif drop_type == 'ammo':
-            game.player.ammo += 10 + Pickup.ammo_upgrade_bonus
+            game.player.ammo += 15 + Pickup.ammo_upgrade_bonus
         elif drop_type == 'exp':
             game.player.exp += int(random.randint(10, 30) * 1.5 ** game.player.lvl % 10)
         elif drop_type == 'nuke':

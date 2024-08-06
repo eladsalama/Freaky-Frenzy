@@ -4,6 +4,7 @@ import math
 import random
 from Projectiles.projectile import Projectile
 from entity import Entity
+from pickup import Pickup
 
 
 class Summon(Entity):
@@ -43,10 +44,9 @@ class Summon(Entity):
             self.speed = 1
             self.size = 5
 
-            self.fire_rate = 30
-            self.bullet_dmg = 1
+            self.fire_rate = 10
+            self.bullet_dmg = 5
             self.bullet_size = 2
-            self.ammo = 100
 
     def move(self, game):
         if self.summon_type == "spinning swords":
@@ -99,12 +99,12 @@ class Summon(Entity):
         dy = game.player.pos[1] - self.pos[1]
         dist = math.hypot(dx, dy)
 
-        if dist > 400:
+        if dist > 600:
             dx, dy = dx / dist, dy / dist  # Normalize
 
             self.pos[0] += dx * self.speed
             self.pos[1] += dy * self.speed
-        elif self.ammo > 0:
+        else:
             if self.move_timer % 180 == 0:
                 self.angle = random.uniform(0, 2 * math.pi)
             random_dx = math.cos(self.angle)
@@ -125,32 +125,15 @@ class Summon(Entity):
                 self.add_exp(1)
 
         if self.summon_type == "robo helper":
-            if self.action_timer >= self.fire_rate and len(game.enemies) > 0 and self.ammo > 0:
+            if self.action_timer >= self.fire_rate and len(game.enemies) > 0:
                 enemy = random.choice(game.enemies)
-                angle = (math.atan2(enemy.pos[1] - self.pos[1], enemy.pos[0] - self.pos[0]) +
-                         random.uniform(-math.pi / 24, math.pi / 24))
+                angle = (math.atan2(enemy.pos[1] - self.pos[1], enemy.pos[0] - self.pos[0]))
                 game.player_projectiles.append(Projectile(self.pos, angle, 10, "circle", (192, 192, 192),
                                                           self.bullet_size, self.bullet_dmg, self))
                 self.action_timer = 0
 
-                self.ammo -= 1
-
-            elif self.ammo == 0:
-                if math.hypot(self.pos[0] - game.player.pos[0], self.pos[1] - game.player.pos[1]) < self.size + game.player.size and game.player.ammo >= 50:
-                    self.ammo += 100
-                    game.player.ammo -= 50
-                    
-    def level_up(self):
-        super().level_up()
-
-        if self.summon_type == "spinning swords":
-            return
-        elif self.summon_type == "healer":
-            return
-        elif self.summon_type == "robo_helper":
-            self.bullet_dmg = self.lvl
-            self.fire_rate -= self.lvl
-            self.bullet_size += 0.5
+            if self.move_timer % 600 == 0:
+                game.pickups.append(Pickup(self.pos[0], self.pos[1], "ammo"))
 
     def draw(self, screen):
         if self.summon_type in ["spinning swords", "enchanted sword"]:
@@ -187,7 +170,7 @@ class Summon(Entity):
             screen.blit(surface, (self.pos[0], self.pos[1]))
 
         if self.summon_type == "robo helper":
-            color = (255, 0, 0) if self.ammo == 0 else (0, 255, 0)
+            color = (255, 0, 0) if (self.move_timer % 600 < 15 or self.move_timer % 600 > 585) else (0, 255, 0)
             pygame.draw.rect(screen, color,
                              pygame.Rect((int(self.pos[0]) - self.size // 2 - 6, int(self.pos[1]) - self.size // 2 - 6,
                                           self.size + 12, self.size + 12)))

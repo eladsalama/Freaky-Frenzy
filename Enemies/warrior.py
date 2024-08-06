@@ -12,8 +12,10 @@ class Warrior(Enemy):
     def __init__(self, pos, enemy_type, player_lvl):
         super().__init__(pos, enemy_type, player_lvl)
 
-        self.size = 15
-        self.exp_value = 10
+        self.size = 8
+        self.speed *= 1.5
+        self.max_speed = self.speed
+        self.exp_value = 1
         self.color = (255, 27, 51)
         self.original_color = self.color
 
@@ -21,16 +23,16 @@ class Warrior(Enemy):
         if not revert:
             self.health *= 1.5
             self.damage *= 2
-            self.speed *= 3
+            self.speed *= 1.5
 
         else:
             self.health /= 1.5
             self.damage //= 2
-            self.speed /= 3
+            self.speed /= 1.5
 
     def draw(self, screen):
         if self.upgraded:
-            pygame.draw.circle(screen, self.upgrader.color, (int(self.pos[0]), int(self.pos[1])), self.size + 5)
+            pygame.draw.circle(screen, self.upgrader.color, (int(self.pos[0]), int(self.pos[1])), self.size + 3)
 
         pygame.draw.circle(screen, (119, 0, 0), (int(self.pos[0]), int(self.pos[1])), self.size)
 

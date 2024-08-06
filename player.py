@@ -13,13 +13,16 @@ class Player(Entity):
 
         self.dmg = 1
 
+        self.shooting = False
+        self.shoot_delay = 0
         self.proj_type = "normal"
-        self.ammo = 100  # 100
+        self.ammo = 150
         self.fire_rate = 25  # 25
+        self.bullet_speed = 10
         self.bullet_amount = 1
         self.bullet_size = 5
         self.bullet_dot = None
-        self.pierce_lvl = 1
+        self.pierce_lvl = 0
         self.fork_lvl = 0
         self.spreadShot = False
         self.bullet_shape = "circle"
@@ -46,7 +49,7 @@ class Player(Entity):
 
         self.dot_effect = None
 
-    def move(self, keys):
+    def move(self, game, keys):
         dx = dy = 0
         if keys[pygame.K_w]:
             dy -= self.speed
@@ -66,8 +69,8 @@ class Player(Entity):
         self.pos[1] += dy
 
         # Keep player within screen bounds
-        self.pos[0] = max(10, min(790, self.pos[0]))
-        self.pos[1] = max(10, min(590, self.pos[1]))
+        self.pos[0] = max(self.size, min(game.WIDTH - self.size, self.pos[0]))
+        self.pos[1] = max(self.size, min(game.HEIGHT - self.size, self.pos[1]))
 
     def aim(self):
         mouse_pos = pygame.mouse.get_pos()
@@ -93,14 +96,14 @@ class Player(Entity):
                     elif self.bullet_amount >= 5:
                         angle_variance = random.uniform(-math.pi / 6, math.pi / 6)
 
-                projectiles.append(Projectile([self.pos[0] + offset_x, self.pos[1] + offset_y], self.angle + angle_variance, 10,
+                projectiles.append(Projectile([self.pos[0] + offset_x, self.pos[1] + offset_y], self.angle + angle_variance, self.bullet_speed,
                                               self.bullet_shape, self.bullet_color, self.bullet_size, self.dmg, self,
                                               proj_type=self.proj_type))
             self.ammo -= 1
 
         if self.shield_lvl == 3:
             projectiles.extend([Projectile((self.shield_cannons[i][0], self.shield_cannons[i][1]),
-                                           self.cannon_angle + (i - 1) * (math.pi / 6), 10,
+                                           self.cannon_angle + (i - 1) * (math.pi / 6), self.bullet_speed,
                                            self.bullet_shape, self.bullet_color, self.bullet_size, self.dmg, self,
                                            proj_type=self.proj_type) for i in range(3)])
 
