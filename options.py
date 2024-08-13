@@ -2,7 +2,7 @@ import pygame
 
 
 class Options:
-    current_resolution_index = 0
+    current_resolution_index = 2
 
     def __init__(self, game):
         self.game = game
