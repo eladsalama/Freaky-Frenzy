@@ -12,12 +12,12 @@ class Player(Entity):
         self.steering_angle = self.angle
         self.speed = 0.0
         self.max_speed = 7.0
-        self.acceleration_rate = 0.05
-        self.acceleration_rate_reverse = 0.04
+        self.acceleration_rate = 0.025
+        self.acceleration_rate_reverse = 0.02
         self.brake_rate = 0.2
-        self.turn_rate = 0.035
-        self.grip = 0.02
-        self.friction = 0.02
+        self.turn_rate = 0.04
+        self.grip = 0.04
+        self.friction = 0.04
         self.reverse = False
 
     def move(self, game, keys):
@@ -58,7 +58,8 @@ class Player(Entity):
             self.brake(self.brake_rate / 3)
 
         # Coasting
-        self.speed = math.copysign(max(0.0, abs(self.speed) - self.friction), self.speed)
+        if not keys[pygame.K_w] and not keys[pygame.K_s]:
+            self.speed = math.copysign(max(0.0, abs(self.speed) - self.friction), self.speed)
 
         # Update position and angle
         if abs(self.speed) > 0:

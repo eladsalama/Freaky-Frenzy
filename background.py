@@ -13,7 +13,7 @@ class Background:
         self.blit_y = 0
 
         # Variables to hold previous items
-        self.prev_camera_pos = width // 2, height // 2
+        self.prev_camera_pos_x, self.prev_camera_pos_y = width // 2, height // 2
         self.prev_zoom = None
         self.map_view = None
         self.last_update_time = pygame.time.get_ticks()
@@ -24,7 +24,8 @@ class Background:
 
         # Only update the world map movement at the specified frame rate
         if (current_time - self.last_update_time >= self.update_interval or not self.scaled_subsurface) \
-                and (self.prev_camera_pos != camera.pos or self.prev_zoom != camera.zoom):
+                and (self.prev_camera_pos_x != camera.pos[0] or self.prev_camera_pos_y != camera.pos[1] or
+                     self.prev_zoom != camera.zoom):
 
             cam_x, cam_y = camera.pos
             zoom = camera.zoom
@@ -60,7 +61,8 @@ class Background:
 
             # Update previous state variables
             self.last_update_time = current_time
-            self.prev_camera_pos = camera.pos[:]
+            self.prev_camera_pos_x = camera.pos[0]
+            self.prev_camera_pos_y = camera.pos[1]
             self.prev_zoom = zoom
 
         # Draw the scaled subsurface if it exists
