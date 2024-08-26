@@ -1,4 +1,3 @@
-import math
 import random
 import pygame
 
@@ -6,25 +5,75 @@ import pygame
 class Entity:
     def __init__(self, pos):
         self.pos = pos
-        self.angle = math.pi / 2
-        self.velocity_angle = self.angle
-
+        self.angle = 0
         self.size = 10
+
+        self.lvl = 1
+        self.max_lvl = 999
+        self.exp = 0
+        self.exp_to_level = 30
 
         self.health = 100
         self.max_health = self.health
+        self.speed = 5
+        self.max_speed = self.speed
 
-        self.speed = 0
-        self.max_speed = 2
-
-        self.color = (255, 0, 0)
+        self.color = (25, 255, 40)
         self.original_color = self.color
 
-    def take_dmg(self, dmg):
+        self.dot_effect = None
+
+    def add_exp(self, amount):
+        self.exp += amount
+
+        if self.exp >= self.exp_to_level and self.lvl < self.max_lvl:
+            self.level_up()
+
+    def level_up(self):
+        self.lvl += 1
+        self.exp -= self.exp_to_level
+        self.exp_to_level = int(self.exp_to_level * 1.05)
+
+    def take_dmg(self, game, dmg):
         self.health -= dmg
 
+    def add_dot(self, dot_type, dmg, duration, interval):
+        duration = int(duration * 60)
+        interval = int(interval * 60)
+        self.dot_effect = {'type': dot_type, 'dmg': dmg, 'duration': duration, 'interval': interval, 'timer': 0,
+                           'cooldown': 120}
+
+    def apply_dot(self, game):
+        self.take_dmg(game, self.dot_effect['dmg'])
+
+        if self.dot_effect['type'] == "zap":
+            self.color = (random.randint(150, 200), random.randint(150, 200), 255)
+            self.speed *= 0.7
+        if self.dot_effect['type'] == "freeze":
+            self.color = (173, 216, 230)
+            self.speed *= 0.3
+        if self.dot_effect['type'] == "burn":
+            self.color = (222, 69, 0)
+            self.speed *= 1.1
+
     def update(self, game):
-        return
+        if self.dot_effect:
+            self.dot_effect['timer'] += 1
+
+            if self.dot_effect['timer'] < self.dot_effect['duration']:
+
+                if self.dot_effect['timer'] % self.dot_effect['interval'] == 0:
+                    self.apply_dot(game)
+
+            else:
+                self.dot_effect['cooldown'] -= 1
+                if self.dot_effect['type'] == "zap":
+                    self.color = (255, 255, 255)
+
+                if self.dot_effect['cooldown'] <= 0:
+                    self.dot_effect = None
+                    self.speed = self.max_speed
+                    self.color = self.original_color
 
     def draw_hp_bar(self, screen):
         # draw hp bar
