@@ -33,11 +33,10 @@ Designed & developed by Elad Salama.
 ```bash
 git clone https://github.com/eladsalama/Freaky-Frenzy.git
 cd Freaky-Frenzy
-And to run the game:
 python main.py
+```
 
 Good luck and have fun :)
-
 <img width="1315" height="750" alt="01" src="https://github.com/user-attachments/assets/175fafb2-cc24-4335-8c7d-655609b5368e" />
 <img width="1316" height="744" alt="02" src="https://github.com/user-attachments/assets/62200743-94ae-4ba7-9cf3-2f1fd7eea6c2" />
 <img width="1315" height="757" alt="03" src="https://github.com/user-attachments/assets/c0b503cd-6052-4d5c-b85d-b1bde263d944" />
